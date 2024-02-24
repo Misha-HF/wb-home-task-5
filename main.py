@@ -5,39 +5,55 @@ import sys
 from datetime import timedelta
 from datetime import date
 
-async def fetch_currency(session, days):
-   currencies = []
-   for day in range(days, 0, -1):
-      today = date.today() - timedelta(days=day)
-      formatted_date = today.strftime('%d.%m.%Y')
-      async with session.get(f'https://api.privatbank.ua/p24api/exchange_rates?json&date={formatted_date}') as response:
-         data = await response.json()
-         eur = data['exchangeRate'][8]
-         eur_format = {"EUR": {"sale": eur['saleRateNB'], "purchase": eur['purchaseRateNB']}}
-         usd = data['exchangeRate'][23]
-         usd_format = {"USD": {"sale": usd['saleRateNB'], "purchase": usd['purchaseRateNB']}}
-         currencies.append({formatted_date: {"EUR": eur_format["EUR"], "USD": usd_format["USD"]}})
-   return currencies 
+async def determiner(currency):
+    count = 0
+    for el in  ['AUD', 'AZN', 'BYN', 'CAD', 'CHF', 'CNY', 'CZK', 'DKK', 'EUR', 'GBP', 'GEL', 'HUF', 'ILS', 'JPY', 'KZT', 'MDL', 'NOK', 'PLN', 'SEK', 'SGD', 'TMT', 'TRY', 'UAH', 'USD', 'UZS', 'XAU']:
+        if el == currency:
+            break
+        else:
+            count += 1
+      
+    currency_info = data['exchangeRate'][count]
+    currency_format = {"sale": currency_info['saleRateNB'], "purchase": currency_info['purchaseRateNB']}
+    return currency_format
 
-async def main(days):
-   async with aiohttp.ClientSession() as session:
-      return await fetch_currency(session, days) 
+async def fetch_currency(session, days, currencies):
+    currencies_list = []
+    for day in range(days, 0, -1):
+        today = date.today() - timedelta(days=day)
+        formatted_date = today.strftime('%d.%m.%Y')
+        async with session.get(f'https://api.privatbank.ua/p24api/exchange_rates?json&date={formatted_date}') as response:
+            global data
+            data = await response.json()
+            currency_data = {currency: await determiner(currency) for currency in currencies}
+            currencies_list.append({formatted_date: currency_data})
+    return currencies_list 
+
+async def main(days, currencies):
+    async with aiohttp.ClientSession() as session:
+        return await fetch_currency(session, days, currencies) 
 
 
 if __name__ == "__main__":
-   if len(sys.argv) != 2:
-      print("Enter days (form 1 to 10)")
-   
-   try:
-      days = int(sys.argv[1])
-   except:
-      print("Days must be integer")
-      sys.exit(1)
-      
-   if days > 10 and days < 1:
-      print("days must be form 1 to 10")
+    currencies = sys.argv[2::]
+    valid_currencies = {'AUD', 'AZN', 'BYN', 'CAD', 'CHF', 'CNY', 'CZK', 'DKK', 'EUR', 'GBP', 'GEL', 'HUF', 'ILS', 'JPY', 'KZT', 'MDL', 'NOK', 'PLN', 'SEK', 'SGD', 'TMT', 'TRY', 'UAH', 'USD', 'UZS', 'XAU'}
+    
+    for el in currencies:
+        if el not in valid_currencies:
+            print("Неправильна валюта")
+            sys.exit(1)
 
-   if platform.system() == 'Windows':
-      asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-   r = asyncio.run(main(days))
-   print(r)
+    try:
+        days = int(sys.argv[1])
+    except ValueError:
+        print("Дні повинні бути цілим числом")
+        sys.exit(1)
+      
+    if not 1 <= days <= 10:
+        print("Дні повинні бути від 1 до 10")
+        sys.exit(1)
+
+    if platform.system() == 'Windows':
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    r = asyncio.run(main(days, currencies))
+    print(r)
